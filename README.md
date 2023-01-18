@@ -1,6 +1,8 @@
 # nutek-run-scripts
 Run Nutek Terminal
 
+![Nutek Terminal ready to use](https://storage.googleapis.com/neosb/static/nutek-terminal.png)
+
 ## What is this?
 
 Here I wrote you a shell script that makes using Nutek Terminal a lot easier. With few taps on keyboard you can

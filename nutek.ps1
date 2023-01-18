@@ -53,14 +53,16 @@ param (
 )
 
 if ($help -Or $h) {
-    Write-Out "This is Nutek, it will help you strenghten security of your IT system, or break it. Get more help 'get-help .\nutek.ps1 -Full'"
+    Write-Output "This is Nutek, it will help you strenghten security of your IT system, or break it. Get more help 'get-help .\nutek.ps1 -Full'"
     Exit
 }
 
 if ($podman) {
     $engine = "podman"
+    $docker_prefix = "docker.io/"
 } else {
     $engine = "docker"
+    $docker_prefix = ""
 }
 
 Write-Output "Welcome to Nutek, the only h@xor tool you will ever need!"
@@ -92,13 +94,13 @@ $default_ports = "-p 7746:7746 -p 8066:8066 -p 8077:8077 -p 8080:8080 -p 8081:80
 if ($ad_hoc) {
     if ($powershell) {
         Write-Output "Starting ad hoc Nutek container with Powershell..."
-        Invoke-Expression "${engine} run --rm -it -h nutek-terminal -e SHELL=powershell ${default_ports} -v ${HOME}/.nutek:/root/.nutek neosb/nutek-core:latest"
+        Invoke-Expression "${engine} run --rm -it -h nutek-terminal -e SHELL=powershell ${default_ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/nutek-core:latest"
     } elseif ($bash) {
         Write-Output "Starting ad hoc Nutek container with bash..."
-        Invoke-Expression "${engine} run --rm -it -h nutek-terminal -e SHELL=bash ${default_ports} -v ${HOME}/.nutek:/root/.nutek neosb/nutek-core:latest"
+        Invoke-Expression "${engine} run --rm -it -h nutek-terminal -e SHELL=bash ${default_ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/nutek-core:latest"
     } else {
         Write-Output "Starting ad hoc Nutek container with zsh..."
-        Invoke-Expression "${engine} run --rm -it -h nutek-terminal ${default_ports} -v ${HOME}/.nutek:/root/.nutek neosb/nutek-core:latest"
+        Invoke-Expression "${engine} run --rm -it -h nutek-terminal ${default_ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/nutek-core:latest"
     }
     Exit
 }
@@ -112,13 +114,15 @@ if (-not $default) {
     if ($container_flavor -eq "") {
         $container_flavor = "nutek-core"
     }
-    $container_version = Read-Host -Prompt "What version of nutek-core image do you want? (latest)"
+    $container_version = Read-Host -Prompt "What version of ${container_flavor} image do you want? (latest)"
     if ($container_version -eq "") {
         $container_version = "latest"
     }
-    $ports = Read-Host -Prompt "Which ports do you want to use? 8080 is used for mitmproxy (occupied when mitmproxy is running), 8081 for mitmweb (the same as mitmproxy - occupied if running), 7746 for sshd, 8077 is for nginx server, 8066 stands for postgresql and others are optional. (7746,8066,8077,8080,8081,8888,8889)"
+    $ports = Read-Host -Prompt "Which ports do you want to use? 8080 is used for mitmproxy (occupied when mitmproxy is running), 8081 for mitmweb (the same as mitmproxy - occupied if running), 7746 for sshd, 8077 is for nginx server, 8066 stands for postgresql and others are optional. [0 for none] or (7746,8066,8077,8080,8081,8888,8889)"
     if ($ports -eq "") {
         $ports = $default_ports
+    } elseif ($ports -eq "0") {
+        $ports = ""
     } else {
         $ports = $ports.Split(",")
         $new_ports = ""
@@ -169,12 +173,12 @@ if ($delete) {
     }
 }
 
-$nutek_image_present = Invoke-Expression "${engine} image ls | grep neosb/${container_flavor}"
+$nutek_image_present = Invoke-Expression "${engine} image ls | grep ${docker_prefix}neosb/${container_flavor}"
 if ($null -eq $nutek_image_present) {
-    $nutek_image_present = Invoke-Expression "${engine} image ls | grep neosb/${container_flavor} | grep ${container_version}"
+    $nutek_image_present = Invoke-Expression "${engine} image ls | grep ${docker_prefix}neosb/${container_flavor} | grep ${container_version}"
     if ($null -eq $nutek_image_present) {
-        $image_size = docker manifest inspect neosb/($container_flavor):($container_version) | grep size | awk -F ':' '{sum+=$NF} END {print sum}' | numfmt --to=iec-i -d "`r"
-        $pull = Read-Host -Prompt "You don't have ${container_flavor} image (version: ${container_version}), do you want to download it now [${image_size}]? (yes)"
+        # $image_size = docker manifest inspect neosb/($container_flavor):($container_version) | grep size | awk -F ':' '{sum+=$NF} END {print sum}' | numfmt --to=iec-i -d "`r" [${image_size}]
+        $pull = Read-Host -Prompt "You don't have ${container_flavor} image (version: ${container_version}), do you want to download it now? (yes)"
         if ($pull -eq "" -Or $pull.ToLower() -eq "yes" ) {
             $pull = $true
         } else {
@@ -189,7 +193,7 @@ if ($null -eq $nutek_image_present) {
 }
 
 if ($pull) {
-    Invoke-Expression "${engine} pull neosb/${container_flavor}:${container_version}"
+    Invoke-Expression "${engine} pull ${docker_prefix}neosb/${container_flavor}:${container_version}"
 }
 
 $container_down = Invoke-Expression "${engine}  ps -a -f name=${container_name} | grep ' ${container_name}$' | grep Exited"
@@ -216,12 +220,15 @@ if (-Not ($null -eq $container_down)) {
     $container_version = "${container_flavor}:${container_version}"
     if ($powershell) {
         Write-Output "Starting Nutek image ${container_version} in ${container_name} container with Powershell shell"
-        Invoke-Expression "${engine} run --name ${container_name} -it -h nutek-terminal -e SHELL=powershell ${ports} -v ${HOME}/.nutek:/root/.nutek neosb/${container_version}"
+        Invoke-Expression "${engine} run --cap-add NET_ADMIN --name ${container_name} -it -h nutek-terminal -e SHELL=powershell ${ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/${container_version}"
+        exit
     } if ($bash) {
         Write-Output "Starting Nutek image ${container_version} in ${container_name} container with Powershell shell"
-        Invoke-Expression "${engine} run --name ${container_name} -it -h nutek-terminal -e SHELL=bash ${ports} -v ${HOME}/.nutek:/root/.nutek neosb/${container_version}"
+        Invoke-Expression "${engine} run --cap-add NET_ADMIN --name ${container_name} -it -h nutek-terminal -e SHELL=bash ${ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/${container_version}"
+        exit
     } else {
         Write-Output "Starting Nutek image ${container_version} in ${container_name} container with zsh shell"
-        Invoke-Expression "${engine} run --name ${container_name} -it -h nutek-terminal ${ports} -v ${HOME}/.nutek:/root/.nutek neosb/${container_version}"
+        Invoke-Expression "${engine} run --cap-add NET_ADMIN --name ${container_name} -it -h nutek-terminal ${ports} -v ${HOME}/.nutek:/root/.nutek ${docker_prefix}neosb/${container_version}"
+        exit
     }
 }
